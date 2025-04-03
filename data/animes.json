@@ -1,0 +1,16 @@
+[
+    {
+      "id": 1,
+      "titulo": "Attack on Titan",
+      "descricao": "Humanos lutando contra titãs",
+      "ano": 2013,
+      "generos": ["Ação", "Drama", "Fantasia"]
+    },
+    {
+      "id": 2,
+      "titulo": "Death Note",
+      "descricao": "Jogo intelectual entre Light e L",
+      "ano": 2006,
+      "generos": ["Mistério", "Psicológico", "Suspense"]
+    }
+  ]

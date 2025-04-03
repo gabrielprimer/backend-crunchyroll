@@ -1,0 +1,23 @@
+[
+    {
+      "id": 1,
+      "animeId": 1,
+      "titulo": "To You, in 2000 Years: The Fall of Shiganshina, Part 1",
+      "numero": 1,
+      "duracao": 24
+    },
+    {
+      "id": 2,
+      "animeId": 1,
+      "titulo": "That Day: The Fall of Shiganshina, Part 2",
+      "numero": 2,
+      "duracao": 24
+    },
+    {
+      "id": 3,
+      "animeId": 2,
+      "titulo": "Rebirth",
+      "numero": 1,
+      "duracao": 23
+    }
+  ]
