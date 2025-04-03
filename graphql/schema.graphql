@@ -1,0 +1,59 @@
+type Anime {
+  id: ID!
+  slug: String!
+  name: String!
+  releaseYear: String
+  releaseDate: String
+  image: String
+  imageDesktop: String
+  synopsis: String
+  rating: Int
+  score: Float
+  genres: [String!]
+  airingDay: String
+  totalEpisodes: Int
+  currentSeason: Int
+  seasonNames: JSON
+  seasonYears: JSON
+  audioType: String
+  logoAnime: String
+  thumbnailImage: String
+  audio: String
+  subtitles: String
+  contentAdvisory: String
+  based: JSON
+  isRelease: Boolean!
+  isPopularSeason: Boolean!
+  newReleases: Boolean!
+  isPopular: Boolean!
+  isNextSeason: Boolean!
+  isThumbnail: Boolean!
+  isMovie: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  episodes: [Episode!]!
+}
+
+type Episode {
+  id: ID!
+  animeId: ID!
+  season: Int!
+  title: String!
+  slug: String!
+  duration: String
+  synopsis: String
+  image: String
+  videoUrl: String
+  releaseDate: String
+  isLancamento: Boolean!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type Query {
+  animes: [Anime!]!
+  animeBySlug(slug: String!): Anime
+  episodesByAnime(animeId: ID!): [Episode!]!
+  latestReleases: [Anime!]!
+  popularAnimes: [Anime!]!
+}

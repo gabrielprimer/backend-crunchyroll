@@ -1,85 +1,36 @@
 package graphql
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
-	"sync"
+	"context"
+	"log"
+
+	"github.com/jefersonprimer/backend-crunchyroll/models"
+	"github.com/nedpals/supabase-go"
 )
 
-type Anime struct {
-	ID        int      `json:"id"`
-	Titulo    string   `json:"titulo"`
-	Descricao string   `json:"descricao"`
-	Ano       int      `json:"ano"`
-	Generos   []string `json:"generos"`
+type Resolver struct {
+	DB *supabase.Client
 }
 
-type Episodio struct {
-	ID      int    `json:"id"`
-	AnimeID int    `json:"animeId"`
-	Titulo  string `json:"titulo"`
-	Numero  int    `json:"numero"`
-	Duracao int    `json:"duracao"`
-}
-
-var (
-	animesCache    []Anime
-	episodiosCache []Episodio
-	once           sync.Once
-)
-
-func loadData() {
-	once.Do(func() {
-		// Obter o caminho absoluto para os arquivos JSON
-		animesPath := filepath.Join("data", "animes.json")
-		episodiosPath := filepath.Join("data", "episodios.json")
-
-		// Carrega animes
-		file, err := os.ReadFile(animesPath)
-		if err != nil {
-			animesCache = []Anime{}
-		} else {
-			json.Unmarshal(file, &animesCache)
-		}
-
-		// Carrega episódios
-		file, err = os.ReadFile(episodiosPath)
-		if err != nil {
-			episodiosCache = []Episodio{}
-		} else {
-			json.Unmarshal(file, &episodiosCache)
-		}
-	})
-}
-
-func GetAnimes() []Anime {
-	loadData()
-	return animesCache
-}
-
-func GetAnimeByID(id int) *Anime {
-	loadData()
-	for _, anime := range animesCache {
-		if anime.ID == id {
-			return &anime
-		}
+func (r *Resolver) GetAnimeBySlug(ctx context.Context, args struct{ Slug string }) (*models.Anime, error) {
+	var results []models.Anime
+	err := r.DB.DB.From("animes").Select("*").Eq("slug", args.Slug).Execute(&results)
+	if err != nil {
+		log.Printf("Error fetching anime by slug: %v", err)
+		return nil, err
 	}
-	return nil
-}
-
-func GetEpisodios() []Episodio {
-	loadData()
-	return episodiosCache
-}
-
-func GetEpisodiosByAnimeID(animeID int) []Episodio {
-	loadData()
-	var result []Episodio
-	for _, episodio := range episodiosCache {
-		if episodio.AnimeID == animeID {
-			result = append(result, episodio)
-		}
+	if len(results) == 0 {
+		return nil, nil
 	}
-	return result
+	return &results[0], nil
+}
+
+func (r *Resolver) GetEpisodesByAnime(ctx context.Context, args struct{ AnimeID string }) ([]*models.Episode, error) {
+	var episodes []*models.Episode
+	err := r.DB.DB.From("episodes").Select("*").Eq("anime_id", args.AnimeID).Execute(&episodes)
+	if err != nil {
+		log.Printf("Error fetching episodes: %v", err)
+		return nil, err
+	}
+	return episodes, nil
 }
