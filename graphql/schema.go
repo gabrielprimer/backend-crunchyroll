@@ -15,14 +15,16 @@ func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 			"id":      &graphql.Field{Type: graphql.String},
 			"animeId": &graphql.Field{Type: graphql.String},
 			"title":   &graphql.Field{Type: graphql.String},
-			// Adicione outros campos do Episode conforme necessário
 		},
 	})
 
 	animeType := graphql.NewObject(graphql.ObjectConfig{
 		Name: "Anime",
 		Fields: graphql.Fields{
-			"id": &graphql.Field{Type: graphql.String},
+			"id":        &graphql.Field{Type: graphql.String},
+			"name":     &graphql.Field{Type: graphql.String},
+			"slug":     &graphql.Field{Type: graphql.String},
+			"image":    &graphql.Field{Type: graphql.String},
 			"episodes": &graphql.Field{
 				Type: graphql.NewList(episodeType),
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
@@ -30,7 +32,6 @@ func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 					return resolver.GetEpisodesByAnime(p.Context, struct{ AnimeID string }{AnimeID: anime.ID})
 				},
 			},
-			// Adicione outros campos do Anime conforme necessário
 		},
 	})
 
@@ -45,6 +46,17 @@ func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 					slug, _ := p.Args["slug"].(string)
 					return resolver.GetAnimeBySlug(p.Context, struct{ Slug string }{Slug: slug})
+				},
+			},
+			"animes": &graphql.Field{
+				Type: graphql.NewList(animeType),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					var animes []models.Anime
+					err := resolver.DB.DB.From("animes").Select("*").Execute(&animes)
+					if err != nil {
+						return nil, err
+					}
+					return animes, nil
 				},
 			},
 		},

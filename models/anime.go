@@ -5,7 +5,7 @@ type Anime struct {
     Slug              string         `json:"slug"`
     Name              string         `json:"name"`
     ReleaseYear       string         `json:"release_year"`
-    ReleaseDate       string         `json:"release_date,omitempty"` // Alterado para string
+    ReleaseDate       string         `json:"release_date,omitempty"` 
     Image             string         `json:"image"`
     ImageDesktop      string         `json:"image_desktop"`
     Synopsis          string         `json:"synopsis"`
@@ -31,6 +31,6 @@ type Anime struct {
     IsNextSeason      bool           `json:"is_next_season"`
     IsThumbnail       bool           `json:"is_thumbnail"`
     IsMovie           bool           `json:"is_movie"`
-    CreatedAt         string         `json:"created_at"` // Alterado para string
-    UpdatedAt         string         `json:"updated_at"` // Alterado para string
+    CreatedAt         string         `json:"created_at"` 
+    UpdatedAt         string         `json:"updated_at"`
 }
