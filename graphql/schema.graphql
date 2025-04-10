@@ -56,4 +56,5 @@ type Query {
   episodesByAnime(animeId: ID!): [Episode!]!
   latestReleases: [Anime!]!
   popularAnimes: [Anime!]!
+  getAllAnimeNames: [String!]!
 }

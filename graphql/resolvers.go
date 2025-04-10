@@ -44,7 +44,6 @@ func NewResolver(db *supabase.Client) *Resolver {
 	}
 }
 
-// GetAnimeBySlug - Versão otimizada com cache e métricas
 func (r *Resolver) GetAnimeBySlug(ctx context.Context, args struct{ Slug string }) (*models.Anime, error) {
 	if anime, ok := r.getAnimeFromCacheBySlug(args.Slug); ok {
 		r.metrics.cacheHits++
@@ -62,9 +61,7 @@ func (r *Resolver) GetAnimeBySlug(ctx context.Context, args struct{ Slug string 
 		ExecuteWithContext(ctx, &results)
 
 	if err != nil {
-		r.logger.Error("Falha ao buscar anime",
-			zap.String("slug", args.Slug),
-			zap.Error(err))
+		r.logger.Error("Falha ao buscar anime", zap.String("slug", args.Slug), zap.Error(err))
 		return nil, errors.New("erro interno do servidor")
 	}
 
@@ -79,7 +76,6 @@ func (r *Resolver) GetAnimeBySlug(ctx context.Context, args struct{ Slug string 
 	return anime, nil
 }
 
-// GetEpisodesByAnime - Versão otimizada com cache
 func (r *Resolver) GetEpisodesByAnime(ctx context.Context, args struct{ AnimeID string }) ([]*models.Episode, error) {
 	if episodes, ok := r.cache.episodes.Load(args.AnimeID); ok {
 		r.metrics.cacheHits++
@@ -97,9 +93,7 @@ func (r *Resolver) GetEpisodesByAnime(ctx context.Context, args struct{ AnimeID 
 		ExecuteWithContext(ctx, &episodes)
 
 	if err != nil {
-		r.logger.Error("Falha ao buscar episódios",
-			zap.String("animeID", args.AnimeID),
-			zap.Error(err))
+		r.logger.Error("Falha ao buscar episódios", zap.String("animeID", args.AnimeID), zap.Error(err))
 		return nil, errors.New("erro interno do servidor")
 	}
 
@@ -109,7 +103,6 @@ func (r *Resolver) GetEpisodesByAnime(ctx context.Context, args struct{ AnimeID 
 	return episodes, nil
 }
 
-// GetLatestReleases - Busca animes marcados como lançamentos recentes com cache
 func (r *Resolver) GetLatestReleases(ctx context.Context) ([]*models.Anime, error) {
 	if !r.cache.latestFetch.IsZero() && time.Since(r.cache.latestFetch) < 5*time.Minute && len(r.cache.latestAnimes) > 0 {
 		r.metrics.cacheHits++
@@ -123,7 +116,7 @@ func (r *Resolver) GetLatestReleases(ctx context.Context) ([]*models.Anime, erro
 	var animes []*models.Anime
 	err := r.DB.DB.From("animes").
 		Select("*").
-		Eq("new_releases", strconv.FormatBool(true)). // <- CORRIGIDO
+		Eq("new_releases", strconv.FormatBool(true)).
 		ExecuteWithContext(ctx, &animes)
 
 	if err != nil {
@@ -142,7 +135,6 @@ func (r *Resolver) GetLatestReleases(ctx context.Context) ([]*models.Anime, erro
 	return animes, nil
 }
 
-// GetPopularAnimes - Busca animes populares com cache
 func (r *Resolver) GetPopularAnimes(ctx context.Context) ([]*models.Anime, error) {
 	if !r.cache.popularFetch.IsZero() && time.Since(r.cache.popularFetch) < 5*time.Minute && len(r.cache.popularAnimes) > 0 {
 		r.metrics.cacheHits++
@@ -156,7 +148,7 @@ func (r *Resolver) GetPopularAnimes(ctx context.Context) ([]*models.Anime, error
 	var animes []*models.Anime
 	err := r.DB.DB.From("animes").
 		Select("*").
-		Eq("is_popular", strconv.FormatBool(true)). // <- CORRIGIDO
+		Eq("is_popular", strconv.FormatBool(true)).
 		ExecuteWithContext(ctx, &animes)
 
 	if err != nil {
@@ -175,7 +167,36 @@ func (r *Resolver) GetPopularAnimes(ctx context.Context) ([]*models.Anime, error
 	return animes, nil
 }
 
-// -- Métodos de cache --
+func (r *Resolver) GetAllAnimeNames(ctx context.Context) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var results []map[string]interface{}
+	err := r.DB.DB.From("animes").
+		Select("name").
+		ExecuteWithContext(ctx, &results)
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar nomes de animes", zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	animeNames := make([]string, len(results))
+	for i, result := range results {
+		if name, ok := result["name"].(string); ok {
+			animeNames[i] = name
+		} else {
+			r.logger.Error("Nome do anime não é uma string", zap.Any("result", result))
+			return nil, errors.New("erro interno do servidor: nome do anime inválido")
+		}
+	}
+
+	r.metrics.dbQueries++
+
+	return animeNames, nil
+}
+
+// -- Cache helpers --
 
 func (r *Resolver) cacheAnime(anime *models.Anime) {
 	r.cache.animes.Store(anime.ID, anime)
@@ -191,7 +212,7 @@ func (r *Resolver) getAnimeFromCacheBySlug(slug string) (*models.Anime, bool) {
 	return nil, false
 }
 
-// -- Monitoramento --
+// -- Monitoring & Cache --
 
 func (r *Resolver) GetCacheStats() map[string]int64 {
 	return map[string]int64{
