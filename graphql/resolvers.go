@@ -25,6 +25,7 @@ type CacheStore struct {
 	animeBySlug   sync.Map // map[string]string (slug -> animeID)
 	latestAnimes  []*models.Anime
 	popularAnimes []*models.Anime
+	genres        sync.Map // map[string][]*models.Genre
 	latestFetch   time.Time
 	popularFetch  time.Time
 }
@@ -225,4 +226,131 @@ func (r *Resolver) GetCacheStats() map[string]int64 {
 func (r *Resolver) InvalidateCache() {
 	r.cache = &CacheStore{}
 	r.logger.Info("Cache invalidado")
+}
+
+func (r *Resolver) GetGenresByAnimeId(ctx context.Context, args struct{ AnimeID string }) ([]*models.Genre, error) {
+	if genres, ok := r.cache.genres.Load(args.AnimeID); ok {
+		r.metrics.cacheHits++
+		return genres.([]*models.Genre), nil
+	}
+	r.metrics.cacheMisses++
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var genres []*models.Genre
+	err := r.DB.DB.From("genres").
+		Select("*").
+		Eq("anime_id", args.AnimeID).
+		ExecuteWithContext(ctx, &genres)
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar gêneros", zap.String("animeID", args.AnimeID), zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	r.cache.genres.Store(args.AnimeID, genres)
+	r.metrics.dbQueries++
+
+	return genres, nil
+}
+
+func (r *Resolver) GetAudioLanguagesByAnimeId(ctx context.Context, args struct{ AnimeID string }) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var results []map[string]interface{}
+	err := r.DB.DB.From("animes").
+		Select("audio_languages").
+		Eq("id", args.AnimeID).
+		ExecuteWithContext(ctx, &results)
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar audio languages", zap.String("animeID", args.AnimeID), zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	if len(results) == 0 {
+		return nil, nil
+	}
+
+	audioLanguages, ok := results[0]["audio_languages"].([]string)
+	if !ok {
+		r.logger.Error("Falha ao converter audio languages", zap.Any("audioLanguages", results[0]["audio_languages"]))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	r.metrics.dbQueries++
+
+	return audioLanguages, nil
+}
+
+func (r *Resolver) GetSubtitlesByAnimeId(ctx context.Context, args struct{ AnimeID string }) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var results []map[string]interface{}
+	err := r.DB.DB.From("animes").
+		Select("subtitles").
+		Eq("id", args.AnimeID).
+		ExecuteWithContext(ctx, &results)
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar subtitles", zap.String("animeID", args.AnimeID), zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	if len(results) == 0 {
+		return nil, nil
+	}
+
+	subtitles, ok := results[0]["subtitles"].([]string)
+	if !ok {
+		r.logger.Error("Falha ao converter subtitles", zap.Any("subtitles", results[0]["subtitles"]))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	r.metrics.dbQueries++
+
+	return subtitles, nil
+}
+
+func (r *Resolver) GetSeasonsByAnimeId(ctx context.Context, args struct{ AnimeID string }) ([]*models.AnimeSeason, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var seasons []*models.AnimeSeason
+	err := r.DB.DB.From("anime_seasons").
+		Select("*").
+		Eq("anime_id", args.AnimeID).
+		ExecuteWithContext(ctx, &seasons)
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar temporadas", zap.String("animeID", args.AnimeID), zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	r.metrics.dbQueries++
+
+	return seasons, nil
+}
+
+func (r *Resolver) GetContentSourcesByAnimeId(ctx context.Context, args struct{ AnimeID string }) ([]*models.ContentSource, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var contentSources []*models.ContentSource
+	err := r.DB.DB.From("content_sources").
+		Select("*").
+		Eq("anime_id", args.AnimeID).
+		ExecuteWithContext(ctx, &contentSources)
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar fontes de conteúdo", zap.String("animeID", args.AnimeID), zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	r.metrics.dbQueries++
+
+	return contentSources, nil
 }

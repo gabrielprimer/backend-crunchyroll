@@ -2,22 +2,17 @@ package graphql
 
 import (
 	"time"
-
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast" // <- IMPORT NECESSÁRIO
 	"backend-crunchyroll/models"
 	"github.com/nedpals/supabase-go"
 )
 
+// Definição do scalar JSON para dados flexíveis
+var jsonScalar *graphql.Scalar = graphql.NewScalar(graphql.ScalarConfig{
+	Name:        "JSON",
+	Description: "Tipo escalar JSON para representar objetos JSON conforme RFC 7159",
 
-func NewSchema(db *supabase.Client) (graphql.Schema, error) {
-	// Use o construtor apropriado para o resolver com cache
-	resolver := NewResolver(db)
-
-	// Definição do scalar JSON para dados flexíveis
-	jsonScalar := graphql.NewScalar(graphql.ScalarConfig{
-		Name:        "JSON",
-		Description: "Tipo escalar JSON para representar objetos JSON conforme RFC 7159",
 		Serialize: func(value interface{}) interface{} {
 			return value
 		},
@@ -31,7 +26,13 @@ func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 			}
 			return nil
 		},
-	})
+})
+
+
+func NewSchema(db *supabase.Client) (graphql.Schema, error) {
+	// Use o construtor apropriado para o resolver com cache
+	resolver := NewResolver(db)
+
 
 	// Definição de Episode
 	episodeType := graphql.NewObject(graphql.ObjectConfig{
@@ -68,6 +69,89 @@ func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 		},
 	})
 
+	// Definição de Genre
+	genreType := graphql.NewObject(graphql.ObjectConfig{
+		Name: "Genre",
+		Fields: graphql.Fields{
+			"id":        &graphql.Field{Type: graphql.NewNonNull(graphql.ID)},
+			"name":      &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
+			"createdAt": &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
+			"updatedAt": &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
+		},
+	})
+
+
+
+	// Definição de AnimeSeason
+	seasonType := graphql.NewObject(graphql.ObjectConfig{
+		Name: "AnimeSeason",
+		Fields: graphql.Fields{
+			"id":               &graphql.Field{Type: graphql.NewNonNull(graphql.ID)},
+			"animeId":          &graphql.Field{Type: graphql.NewNonNull(graphql.ID)},
+			"seasonNumber":     &graphql.Field{Type: graphql.NewNonNull(graphql.Int)},
+			"seasonName":       &graphql.Field{Type: graphql.String},
+			"totalEpisodes":    &graphql.Field{Type: graphql.Int},
+			"firstEpisodeDate": &graphql.Field{Type: graphql.String},
+			"lastEpisodeDate":  &graphql.Field{Type: graphql.String},
+			"createdAt":        &graphql.Field{Type: graphql.NewNonNull(graphql.String), Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				if season, ok := p.Source.(*models.AnimeSeason); ok {
+					return season.CreatedAt.Format(time.RFC3339), nil
+				}
+				return "", nil
+			}},
+			"updatedAt":        &graphql.Field{Type: graphql.NewNonNull(graphql.String), Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				if season, ok := p.Source.(*models.AnimeSeason); ok {
+					return season.UpdatedAt.Format(time.RFC3339), nil
+				}
+				return "", nil
+			}},
+		},
+	})
+
+	// Definição de ContentSource
+	contentType := graphql.NewObject(graphql.ObjectConfig{
+		Name: "ContentSource",
+		Fields: graphql.Fields{
+			"id":         &graphql.Field{Type: graphql.NewNonNull(graphql.ID)},
+			"animeId":    &graphql.Field{Type: graphql.String},
+			"movieId":    &graphql.Field{Type: graphql.String},
+			"sourceType": &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
+			"title":      &graphql.Field{Type: graphql.String},
+			"authors":    &graphql.Field{Type: graphql.String},
+			"copyright":  &graphql.Field{Type: graphql.String},
+			"createdAt":  &graphql.Field{Type: graphql.NewNonNull(graphql.String), Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				if contentSource, ok := p.Source.(*models.ContentSource); ok {
+					return contentSource.CreatedAt.Format(time.RFC3339), nil
+				}
+				return "", nil
+			}},
+			"updatedAt":  &graphql.Field{Type: graphql.NewNonNull(graphql.String), Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				if contentSource, ok := p.Source.(*models.ContentSource); ok {
+					return contentSource.UpdatedAt.Format(time.RFC3339), nil
+				}
+				return "", nil
+			}},
+		},
+	})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	// Definição de Anime
 	animeType := graphql.NewObject(graphql.ObjectConfig{
 		Name: "Anime",
@@ -75,51 +159,95 @@ func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 			"id":             &graphql.Field{Type: graphql.NewNonNull(graphql.ID)},
 			"slug":           &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
 			"name":           &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
-			"releaseYear":    &graphql.Field{Type: graphql.String},
+			"releaseYear":    &graphql.Field{Type: graphql.Int},
 			"releaseDate":    &graphql.Field{Type: graphql.String, Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 				if anime, ok := p.Source.(*models.Anime); ok && anime.ReleaseDate != nil {
 					return anime.ReleaseDate.Format(time.RFC3339), nil
 				}
-				return nil, nil
-			}},
-			"image":          &graphql.Field{Type: graphql.String},
-			"imageDesktop":   &graphql.Field{Type: graphql.String},
+				return nil, nil			},},
+			"imageBannerMobile":   &graphql.Field{Type: graphql.String},
+			"imageCardCompact":    &graphql.Field{Type: graphql.String},
+			"imagePoster":          &graphql.Field{Type: graphql.String},
+			"imageBannerDesktop":   &graphql.Field{Type: graphql.String},
 			"synopsis":       &graphql.Field{Type: graphql.String},
 			"rating":         &graphql.Field{Type: graphql.Int},
 			"score":          &graphql.Field{Type: graphql.Float},
-			"genres":         &graphql.Field{Type: graphql.NewList(graphql.NewNonNull(graphql.String))},
 			"airingDay":      &graphql.Field{Type: graphql.String},
 			"totalEpisodes":  &graphql.Field{Type: graphql.Int},
-			"currentSeason":  &graphql.Field{Type: graphql.Int},
-			"seasonNames":    &graphql.Field{Type: jsonScalar},
-			"seasonYears":    &graphql.Field{Type: jsonScalar},
 			"audioType":      &graphql.Field{Type: graphql.String},
-			"logoAnime":      &graphql.Field{Type: graphql.String},
-			"thumbnailImage": &graphql.Field{Type: graphql.String},
-			"audio":          &graphql.Field{Type: graphql.String},
-			"subtitles":      &graphql.Field{Type: graphql.String},
-			"contentAdvisory": &graphql.Field{Type: graphql.String},
-			"based":          &graphql.Field{Type: jsonScalar},
-			"isRelease":      &graphql.Field{Type: graphql.NewNonNull(graphql.Boolean)},
-			"isPopularSeason": &graphql.Field{Type: graphql.NewNonNull(graphql.Boolean)},
-			"newReleases":    &graphql.Field{Type: graphql.NewNonNull(graphql.Boolean)},
-			"isPopular":      &graphql.Field{Type: graphql.NewNonNull(graphql.Boolean)},
-			"isNextSeason":   &graphql.Field{Type: graphql.NewNonNull(graphql.Boolean)},
-			"isThumbnail":    &graphql.Field{Type: graphql.NewNonNull(graphql.Boolean)},
-			"isMovie":        &graphql.Field{Type: graphql.NewNonNull(graphql.Boolean)},
-			"createdAt":      &graphql.Field{Type: graphql.NewNonNull(graphql.String), Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			"imageLogo":      &graphql.Field{Type: graphql.String},
+			"imageThumbnail": &graphql.Field{Type: graphql.String},
+			"contentAdvisory":  &graphql.Field{Type: graphql.String},
+			"publicCode":     &graphql.Field{Type: graphql.String},
+			"genres": &graphql.Field{
+				Type: graphql.NewList(graphql.NewNonNull(genreType)),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					anime, ok := p.Source.(*models.Anime)
+					if !ok {
+						return nil, nil
+					}
+					return resolver.GetGenresByAnimeId(p.Context, struct{ AnimeID string }{AnimeID: anime.ID})
+				},
+			},
+			"audioLanguages": &graphql.Field{
+				Type: graphql.NewList(graphql.NewNonNull(graphql.String)),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					anime, ok := p.Source.(*models.Anime)
+					if !ok {
+						return nil, nil
+					}
+					return resolver.GetAudioLanguagesByAnimeId(p.Context, struct{ AnimeID string }{AnimeID: anime.ID})
+				},
+			},
+			"subtitles": &graphql.Field{
+				Type: graphql.NewList(graphql.NewNonNull(graphql.String)),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					anime, ok := p.Source.(*models.Anime)
+					if !ok {
+						return nil, nil
+					}
+					return resolver.GetSubtitlesByAnimeId(p.Context, struct{ AnimeID string }{AnimeID: anime.ID})
+				},
+			},
+			"seasons": &graphql.Field{
+				Type: graphql.NewList(graphql.NewNonNull(seasonType)),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					anime, ok := p.Source.(*models.Anime)
+					if !ok {
+						return nil, nil
+					}
+					return resolver.GetSeasonsByAnimeId(p.Context, struct{ AnimeID string }{AnimeID: anime.ID})
+				},
+			},
+			"contentSources": &graphql.Field{
+				Type: graphql.NewList(graphql.NewNonNull(contentType)),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					anime, ok := p.Source.(*models.Anime)
+					if !ok {
+						return nil, nil
+					}
+					return resolver.GetContentSourcesByAnimeId(p.Context, struct{ AnimeID string }{AnimeID: anime.ID})
+				},
+			},
+			"isReleasing":       &graphql.Field{Type: graphql.NewNonNull(graphql.Boolean)},
+			"isSeasonPopular":   &graphql.Field{Type: graphql.NewNonNull(graphql.Boolean)},
+			"isNewRelease":      &graphql.Field{Type: graphql.NewNonNull(graphql.Boolean)},
+			"isPopular":         &graphql.Field{Type: graphql.NewNonNull(graphql.Boolean)},
+			"hasNextSeason":      &graphql.Field{Type: graphql.NewNonNull(graphql.Boolean)},
+			"hasThumbnail":        &graphql.Field{Type: graphql.NewNonNull(graphql.Boolean)},
+			"createdAt":        &graphql.Field{Type: graphql.NewNonNull(graphql.String), Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 				if anime, ok := p.Source.(*models.Anime); ok {
 					return anime.CreatedAt.Format(time.RFC3339), nil
 				}
 				return "", nil
 			}},
-			"updatedAt":      &graphql.Field{Type: graphql.NewNonNull(graphql.String), Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			"updatedAt":        &graphql.Field{Type: graphql.NewNonNull(graphql.String), Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 				if anime, ok := p.Source.(*models.Anime); ok {
 					return anime.UpdatedAt.Format(time.RFC3339), nil
 				}
 				return "", nil
 			}},
-			"episodes": &graphql.Field{
+			"episodes":       &graphql.Field{
 				Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(episodeType))),
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 					anime := p.Source.(*models.Anime)
