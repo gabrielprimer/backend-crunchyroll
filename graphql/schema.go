@@ -3,31 +3,11 @@ package graphql
 import (
 	"time"
 	"github.com/graphql-go/graphql"
-	"github.com/graphql-go/graphql/language/ast" // <- IMPORT NECESSÁRIO
-	"backend-crunchyroll/models"
+    "backend-crunchyroll/models"
 	"github.com/nedpals/supabase-go"
 )
 
-// Definição do scalar JSON para dados flexíveis
-var jsonScalar *graphql.Scalar = graphql.NewScalar(graphql.ScalarConfig{
-	Name:        "JSON",
-	Description: "Tipo escalar JSON para representar objetos JSON conforme RFC 7159",
-
-		Serialize: func(value interface{}) interface{} {
-			return value
-		},
-		ParseValue: func(value interface{}) interface{} {
-			return value
-		},
-		ParseLiteral: func(valueAST ast.Value) interface{} {
-			switch valueAST := valueAST.(type) {
-			case *ast.ObjectValue:
-				return valueAST.GetValue()
-			}
-			return nil
-		},
-})
-
+   
 
 func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 	// Use o construtor apropriado para o resolver com cache
@@ -174,7 +154,15 @@ func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 			"score":          &graphql.Field{Type: graphql.Float},
 			"airingDay":      &graphql.Field{Type: graphql.String},
 			"totalEpisodes":  &graphql.Field{Type: graphql.Int},
-			"audioType":      &graphql.Field{Type: graphql.String},
+			"audioType": &graphql.Field{
+				Type: graphql.String,
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if anime, ok := p.Source.(*models.Anime); ok && anime.AudioType != nil {
+						return string(*anime.AudioType), nil
+					}
+					return nil, nil
+				},
+			},
 			"imageLogo":      &graphql.Field{Type: graphql.String},
 			"imageThumbnail": &graphql.Field{Type: graphql.String},
 			"contentAdvisory":  &graphql.Field{Type: graphql.String},
