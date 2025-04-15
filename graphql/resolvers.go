@@ -316,23 +316,67 @@ func (r *Resolver) GetSubtitlesByAnimeId(ctx context.Context, args struct{ Anime
 }
 
 func (r *Resolver) GetSeasonsByAnimeId(ctx context.Context, args struct{ AnimeID string }) ([]*models.AnimeSeason, error) {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
+    ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+    defer cancel()
 
-	var seasons []*models.AnimeSeason
-	err := r.DB.DB.From("anime_seasons").
-		Select("*").
-		Eq("anime_id", args.AnimeID).
-		ExecuteWithContext(ctx, &seasons)
+    // Buscar dados brutos primeiro para evitar problemas de parsing
+    var rawSeasons []map[string]interface{}
+    err := r.DB.DB.From("anime_seasons").
+        Select("*").
+        Eq("anime_id", args.AnimeID).
+        ExecuteWithContext(ctx, &rawSeasons)
 
-	if err != nil {
-		r.logger.Error("Falha ao buscar temporadas", zap.String("animeID", args.AnimeID), zap.Error(err))
-		return nil, errors.New("erro interno do servidor")
-	}
+    if err != nil {
+        r.logger.Error("Falha ao buscar temporadas", zap.String("animeID", args.AnimeID), zap.Error(err))
+        return nil, errors.New("erro interno do servidor")
+    }
 
-	r.metrics.dbQueries++
+    // Converter dados brutos para struct AnimeSeason manualmente
+    seasons := make([]*models.AnimeSeason, 0, len(rawSeasons))
+    for _, rawSeason := range rawSeasons {
+        season := &models.AnimeSeason{
+            ID:           rawSeason["id"].(string),
+            AnimeID:      rawSeason["anime_id"].(string),
+            SeasonNumber: int(rawSeason["season_number"].(float64)),
+        }
 
-	return seasons, nil
+        // Converter campos opcionais com verificação de tipo
+        if name, ok := rawSeason["season_name"].(string); ok {
+            season.SeasonName = &name
+        }
+        
+        if episodes, ok := rawSeason["total_episodes"].(float64); ok {
+            episodesInt := int(episodes)
+            season.TotalEpisodes = &episodesInt
+        }
+
+        // Pular campos de data problemáticos ou implementar parsing manual
+        // A conversão de created_at e updated_at ainda será necessária
+        if createdAtStr, ok := rawSeason["created_at"].(string); ok {
+            createdAt, err := time.Parse("2006-01-02T15:04:05.999999", createdAtStr)
+            if err == nil {
+                season.CreatedAt = createdAt
+            } else {
+                // Fallback para data atual se houver erro
+                season.CreatedAt = time.Now()
+            }
+        }
+
+        if updatedAtStr, ok := rawSeason["updated_at"].(string); ok {
+            updatedAt, err := time.Parse("2006-01-02T15:04:05.999999", updatedAtStr)
+            if err == nil {
+                season.UpdatedAt = updatedAt
+            } else {
+                // Fallback para data atual se houver erro
+                season.UpdatedAt = time.Now()
+            }
+        }
+
+        seasons = append(seasons, season)
+    }
+
+    r.metrics.dbQueries++
+    return seasons, nil
 }
 
 func (r *Resolver) GetContentSourcesByAnimeId(ctx context.Context, args struct{ AnimeID string }) ([]*models.ContentSource, error) {
