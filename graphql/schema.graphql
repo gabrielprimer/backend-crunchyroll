@@ -22,13 +22,16 @@ type Anime {
   subtitles: String
   contentAdvisory: String
   based: JSON
-  isRelease: Boolean!
-  isPopularSeason: Boolean!
-  newReleases: Boolean!
+
+  
+
   isPopular: Boolean!
-  isNextSeason: Boolean!
-  isThumbnail: Boolean!
-  isMovie: Boolean!
+  isSeasonPopular: Boolean!
+  isReleasing: Boolean!
+  isNewRelease: Boolean!
+  hasNextSeason: Boolean!
+  hasThumbnail: Boolean!
+  
   createdAt: String!
   updatedAt: String!
   episodes: [Episode!]!
@@ -56,5 +59,10 @@ type Query {
   episodesByAnime(animeId: ID!): [Episode!]!
   latestReleases: [Anime!]!
   popularAnimes: [Anime!]!
+  releasingAnimes: [Anime!]!
+  seasonPopularAnimes: [Anime!]!
+  nextSeasonAnimes: [Anime!]!
+  hasThumbnail: [Anime!]!
+
   getAllAnimeNames: [String!]!
 }

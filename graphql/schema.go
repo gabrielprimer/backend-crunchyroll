@@ -5,14 +5,11 @@ import (
 	"github.com/graphql-go/graphql"
     "backend-crunchyroll/models"
 	"github.com/nedpals/supabase-go"
-)
-
-   
+)  
 
 func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 	// Use o construtor apropriado para o resolver com cache
 	resolver := NewResolver(db)
-
 
 	// Definição de Episode
 	episodeType := graphql.NewObject(graphql.ObjectConfig{
@@ -59,8 +56,6 @@ func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 			"updatedAt": &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
 		},
 	})
-
-
 
 	// Definição de AnimeSeason
 	seasonType := graphql.NewObject(graphql.ObjectConfig{
@@ -113,24 +108,6 @@ func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 			}},
 		},
 	})
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 	// Definição de Anime
 	animeType := graphql.NewObject(graphql.ObjectConfig{
@@ -305,6 +282,30 @@ func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 				Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(animeType))),
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 					return resolver.GetPopularAnimes(p.Context)
+				},
+			},
+			"releasingAnimes": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(animeType))),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return resolver.GetReleasingAnimes(p.Context)
+				},
+			},
+			"seasonPopularAnimes": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(animeType))),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return resolver.GetSeasonPopularAnimes(p.Context)
+				},
+			},
+			"nextSeasonAnimes": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(animeType))),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return resolver.GetNextSeasonAnimes(p.Context)
+				},
+			},
+			"hasThumbnail": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(animeType))),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return resolver.GetHasThumbnail(p.Context)
 				},
 			},
 			"cacheStats": &graphql.Field{

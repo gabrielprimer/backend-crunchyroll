@@ -25,6 +25,10 @@ type CacheStore struct {
 	animeBySlug   sync.Map // map[string]string (slug -> animeID)
 	latestAnimes  []*models.Anime
 	popularAnimes []*models.Anime
+	releasingAnimes []*models.Anime
+	seasonPopularAnimes []*models.Anime
+	nextSeasonAnimes []*models.Anime
+	hasThumbnail []*models.Anime
 	genres        sync.Map // map[string][]*models.Genre
 	latestFetch   time.Time
 	popularFetch  time.Time
@@ -117,7 +121,7 @@ func (r *Resolver) GetLatestReleases(ctx context.Context) ([]*models.Anime, erro
 	var animes []*models.Anime
 	err := r.DB.DB.From("animes").
 		Select("*").
-		Eq("new_releases", strconv.FormatBool(true)).
+		Eq("is_new_release", strconv.FormatBool(true)).
 		ExecuteWithContext(ctx, &animes)
 
 	if err != nil {
@@ -162,6 +166,134 @@ func (r *Resolver) GetPopularAnimes(ctx context.Context) ([]*models.Anime, error
 	}
 
 	r.cache.popularAnimes = animes
+	r.cache.popularFetch = time.Now()
+	r.metrics.dbQueries++
+
+	return animes, nil
+}
+
+func (r *Resolver) GetReleasingAnimes(ctx context.Context) ([]*models.Anime, error) {
+	if !r.cache.popularFetch.IsZero() && time.Since(r.cache.popularFetch) < 5*time.Minute && len(r.cache.releasingAnimes) > 0 {
+		r.metrics.cacheHits++
+		return r.cache.releasingAnimes, nil
+	}
+	r.metrics.cacheMisses++
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var animes []*models.Anime
+	err := r.DB.DB.From("animes").
+		Select("*").
+		Eq("is_releasing", strconv.FormatBool(true)).
+		ExecuteWithContext(ctx, &animes)
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar animes em lancamento", zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	for _, anime := range animes {
+		r.cacheAnime(anime)
+	}
+
+	r.cache.releasingAnimes = animes
+	r.cache.popularFetch = time.Now()
+	r.metrics.dbQueries++
+
+	return animes, nil
+}
+
+func (r *Resolver) GetSeasonPopularAnimes(ctx context.Context) ([]*models.Anime, error) {
+	if !r.cache.popularFetch.IsZero() && time.Since(r.cache.popularFetch) < 5*time.Minute && len(r.cache.seasonPopularAnimes) > 0 {
+		r.metrics.cacheHits++
+		return r.cache.seasonPopularAnimes, nil
+	}
+	r.metrics.cacheMisses++
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var animes []*models.Anime
+	err := r.DB.DB.From("animes").
+		Select("*").
+		Eq("is_season_popular", strconv.FormatBool(true)).
+		ExecuteWithContext(ctx, &animes)
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar animes de season popular", zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	for _, anime := range animes {
+		r.cacheAnime(anime)
+	}
+
+	r.cache.seasonPopularAnimes = animes
+	r.cache.popularFetch = time.Now()
+	r.metrics.dbQueries++
+
+	return animes, nil
+}
+
+func (r *Resolver) GetNextSeasonAnimes(ctx context.Context) ([]*models.Anime, error) {
+	if !r.cache.popularFetch.IsZero() && time.Since(r.cache.popularFetch) < 5*time.Minute && len(r.cache.nextSeasonAnimes) > 0 {
+		r.metrics.cacheHits++
+		return r.cache.nextSeasonAnimes, nil
+	}
+	r.metrics.cacheMisses++
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var animes []*models.Anime
+	err := r.DB.DB.From("animes").
+		Select("*").
+		Eq("has_next_season", strconv.FormatBool(true)).
+		ExecuteWithContext(ctx, &animes)
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar animes de temporadas futuras", zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	for _, anime := range animes {
+		r.cacheAnime(anime)
+	}
+
+	r.cache.seasonPopularAnimes = animes
+	r.cache.popularFetch = time.Now()
+	r.metrics.dbQueries++
+
+	return animes, nil
+}
+
+func (r *Resolver) GetHasThumbnail(ctx context.Context) ([]*models.Anime, error) {
+	if !r.cache.popularFetch.IsZero() && time.Since(r.cache.popularFetch) < 5*time.Minute && len(r.cache.hasThumbnail) > 0 {
+		r.metrics.cacheHits++
+		return r.cache.hasThumbnail, nil
+	}
+	r.metrics.cacheMisses++
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var animes []*models.Anime
+	err := r.DB.DB.From("animes").
+		Select("*").
+		Eq("has_thumbnail", strconv.FormatBool(true)).
+		ExecuteWithContext(ctx, &animes)
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar animes de com thumbnails", zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	for _, anime := range animes {
+		r.cacheAnime(anime)
+	}
+
+	r.cache.hasThumbnail = animes
 	r.cache.popularFetch = time.Now()
 	r.metrics.dbQueries++
 
