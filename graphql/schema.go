@@ -308,12 +308,23 @@ func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 					return resolver.GetHasThumbnail(p.Context)
 				},
 			},
+			"dubbedAnimes": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(animeType))),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return resolver.GetDubbedAnimes(p.Context)
+				},
+			},
 			"cacheStats": &graphql.Field{
 				Type: statsType,
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 					return resolver.GetCacheStats(), nil
 				},
 			},
+			"animeOfTheDay": &graphql.Field{
+				Type: animeType,
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return resolver.GetAnimeOfTheDay(p.Context)
+				}},
 		},
 	})
 

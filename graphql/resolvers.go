@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"math/rand"
+	"strings"
 	"context"
 	"errors"
 	"strconv"
@@ -204,6 +206,40 @@ func (r *Resolver) GetReleasingAnimes(ctx context.Context) ([]*models.Anime, err
 	return animes, nil
 }
 
+// GetAnimeOfTheDay retrieves a random anime from the database
+// GetAnimeOfTheDay retrieves a random anime from the database based on the current day of the week.
+func (r *Resolver) GetAnimeOfTheDay(ctx context.Context) (*models.Anime, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	currentDay := strings.ToLower(time.Now().Weekday().String())
+
+	var animes []*models.Anime
+	err := r.DB.DB.From("animes").
+		Select("*").
+		Eq("airing_day", currentDay).
+		ExecuteWithContext(ctx, &animes)
+
+
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar animes", zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	if len(animes) == 0 {
+		return nil, nil
+
+	}
+
+	randomIndex := rand.Intn(len(animes))
+	anime := animes[randomIndex]
+	r.cacheAnime(anime)
+	r.metrics.dbQueries++
+
+	return anime, nil
+}
+
 func (r *Resolver) GetSeasonPopularAnimes(ctx context.Context) ([]*models.Anime, error) {
 	if !r.cache.popularFetch.IsZero() && time.Since(r.cache.popularFetch) < 5*time.Minute && len(r.cache.seasonPopularAnimes) > 0 {
 		r.metrics.cacheHits++
@@ -299,6 +335,36 @@ func (r *Resolver) GetHasThumbnail(ctx context.Context) ([]*models.Anime, error)
 
 	return animes, nil
 }
+
+func (r *Resolver) GetDubbedAnimes(ctx context.Context) ([]*models.Anime, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var animes []*models.Anime
+	err := r.DB.DB.From("animes").
+		Select("*").
+		In("audio_type", []string{"Dubbed"}).
+		ExecuteWithContext(ctx, &animes)
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar animes dublados", zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	if len(animes) == 0 {
+		return nil, nil
+	}
+
+	for _, anime := range animes {
+		r.cacheAnime(anime)
+	}
+
+	r.metrics.dbQueries++
+
+	return animes, nil
+}
+
+
 
 func (r *Resolver) GetAllAnimeNames(ctx context.Context) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
