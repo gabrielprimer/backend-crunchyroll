@@ -31,6 +31,7 @@ type CacheStore struct {
 	seasonPopularAnimes []*models.Anime
 	nextSeasonAnimes []*models.Anime
 	hasThumbnail []*models.Anime
+	movie []*models.Anime
 	genres        sync.Map // map[string][]*models.Genre
 	latestFetch   time.Time
 	popularFetch  time.Time
@@ -322,6 +323,38 @@ func (r *Resolver) GetHasThumbnail(ctx context.Context) ([]*models.Anime, error)
 
 	if err != nil {
 		r.logger.Error("Falha ao buscar animes de com thumbnails", zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	for _, anime := range animes {
+		r.cacheAnime(anime)
+	}
+
+	r.cache.hasThumbnail = animes
+	r.cache.popularFetch = time.Now()
+	r.metrics.dbQueries++
+
+	return animes, nil
+}
+
+func (r *Resolver) GetMovie(ctx context.Context) ([]*models.Anime, error) {
+	if !r.cache.popularFetch.IsZero() && time.Since(r.cache.popularFetch) < 5*time.Minute && len(r.cache.movie) > 0 {
+		r.metrics.cacheHits++
+		return r.cache.movie, nil
+	}
+	r.metrics.cacheMisses++
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var animes []*models.Anime
+	err := r.DB.DB.From("animes").
+		Select("*").
+		Eq("is_movie", strconv.FormatBool(true)).
+		ExecuteWithContext(ctx, &animes)
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar filmes", zap.Error(err))
 		return nil, errors.New("erro interno do servidor")
 	}
 

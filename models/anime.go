@@ -34,6 +34,7 @@ type Anime struct {
 	IsPopular           bool           `json:"is_popular" graphql:"isPopular"`
 	HasNextSeason       bool           `json:"has_next_season" graphql:"hasNextSeason"`
 	HasThumbnail        bool           `json:"has_thumbnail" graphql:"hasThumbnail"`
+	IsMovie             bool           `json:"is_movie" graphql:"movie"`
 	
 	// Relacionamentos que podem ser carregados posteriormente
 	Genres              []Genre        `json:"genres,omitempty" graphql:"genres"`

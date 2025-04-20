@@ -308,6 +308,12 @@ func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 					return resolver.GetHasThumbnail(p.Context)
 				},
 			},
+			"movie": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(animeType))),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return resolver.GetMovie(p.Context)
+				},
+			},
 			"dubbedAnimes": &graphql.Field{
 				Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(animeType))),
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
