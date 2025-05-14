@@ -1,1 +1,19 @@
-TODO: fazer o merge na main, pois deu certo a query do genre, antes de fazer o merge , testar as outras querys para ver se nao quebrou nada
+seleciona os content_source de um anime
+
+SELECT cs.*
+FROM content_sources cs
+JOIN animes a ON cs.anime_id = a.id
+WHERE a.slug = 'solo-leveling';
+
+
+
+
+
+ver se eu consigo pegar o 
+title, dub ou legendado, tempo do episodio, sinopsis do ep, data de lancamento
+
+
+
+
+
+DAR COMMIT NA BRANCH DEV !!!!!!!!!!!!!!

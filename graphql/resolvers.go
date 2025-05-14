@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"backend-crunchyroll/models"
+	"backend-crunchyroll/enums"
 	"github.com/nedpals/supabase-go"
 	"go.uber.org/zap"
 )
@@ -94,15 +95,82 @@ func (r *Resolver) GetEpisodesByAnime(ctx context.Context, args struct{ AnimeID 
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	var episodes []*models.Episode
+	var rawResults []map[string]interface{}
 	err := r.DB.DB.From("episodes").
 		Select("*").
 		Eq("anime_id", args.AnimeID).
-		ExecuteWithContext(ctx, &episodes)
+		ExecuteWithContext(ctx, &rawResults)
 
 	if err != nil {
 		r.logger.Error("Falha ao buscar episódios", zap.String("animeID", args.AnimeID), zap.Error(err))
 		return nil, errors.New("erro interno do servidor")
+	}
+
+	episodes := make([]*models.Episode, 0, len(rawResults))
+	for _, raw := range rawResults {
+		episode := &models.Episode{
+			ID:      raw["id"].(string),
+			AnimeID: raw["anime_id"].(string),
+		}
+
+		if title, ok := raw["title"].(string); ok {
+			episode.Title = title
+		}
+		if slug, ok := raw["slug"].(string); ok {
+			episode.Slug = slug
+		}
+		if duration, ok := raw["duration"].(string); ok {
+			episode.Duration = &duration
+		}
+		if synopsis, ok := raw["synopsis"].(string); ok {
+			episode.Synopsis = &synopsis
+		}
+		if image, ok := raw["image"].(string); ok {
+			episode.Image = &image
+		}
+
+		// Parse release_date
+		if releaseDate, ok := raw["release_date"].(string); ok {
+			// Tenta diferentes formatos de data
+			formats := []string{
+				"2006-01-02T15:04:05.999999",
+				"2006-01-02T15:04:05Z07:00",
+				"2006-01-02",
+			}
+			
+			var parsedTime time.Time
+			var parseErr error
+			
+			for _, format := range formats {
+				parsedTime, parseErr = time.Parse(format, releaseDate)
+				if parseErr == nil {
+					episode.ReleaseDate = &parsedTime
+					break
+				}
+			}
+		}
+
+		// Parse created_at
+		if createdAt, ok := raw["created_at"].(string); ok {
+			t, err := time.Parse("2006-01-02T15:04:05.999999", createdAt)
+			if err == nil {
+				episode.CreatedAt = t
+			} else {
+				episode.CreatedAt = time.Now() // Fallback para data atual
+			}
+		}
+
+		// Parse updated_at
+		if updatedAt, ok := raw["updated_at"].(string); ok {
+			t, err := time.Parse("2006-01-02T15:04:05.999999", updatedAt)
+			if err == nil {
+				episode.UpdatedAt = t
+			} else {
+				episode.UpdatedAt = time.Now() // Fallback para data atual
+			}
+		}
+
+		episodes = append(episodes, episode)
 	}
 
 	r.cache.episodes.Store(args.AnimeID, episodes)
@@ -665,18 +733,65 @@ func (r *Resolver) GetContentSourcesByAnimeId(ctx context.Context, args struct{ 
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	var contentSources []*models.ContentSource
+	var rawResults []map[string]interface{}
 	err := r.DB.DB.From("content_sources").
 		Select("*").
 		Eq("anime_id", args.AnimeID).
-		ExecuteWithContext(ctx, &contentSources)
+		ExecuteWithContext(ctx, &rawResults)
 
 	if err != nil {
 		r.logger.Error("Falha ao buscar fontes de conteúdo", zap.String("animeID", args.AnimeID), zap.Error(err))
 		return nil, errors.New("erro interno do servidor")
 	}
 
-	r.metrics.dbQueries++
+	contentSources := make([]*models.ContentSource, 0, len(rawResults))
+	for _, raw := range rawResults {
+		cs := &models.ContentSource{
+			ID: raw["id"].(string),
+		}
+		
+		if animeID, ok := raw["anime_id"].(string); ok {
+			cs.AnimeID = &animeID
+		}
+		if movieID, ok := raw["movie_id"].(string); ok {
+			cs.MovieID = &movieID
+		}
+		if sourceType, ok := raw["source_type"].(string); ok {
+			cs.SourceType = enums.SourceType(sourceType)
+		}
+		if title, ok := raw["title"].(string); ok {
+			cs.Title = &title
+		}
+		if authors, ok := raw["authors"].(string); ok {
+			cs.Authors = &authors
+		}
+		if copyright, ok := raw["copyright"].(string); ok {
+			cs.Copyright = &copyright
+		}
 
+		// Parse created_at
+		if createdAt, ok := raw["created_at"].(string); ok {
+			t, err := time.Parse("2006-01-02T15:04:05.999999", createdAt)
+			if err == nil {
+				cs.CreatedAt = t
+			} else {
+				cs.CreatedAt = time.Now() // Fallback para data atual
+			}
+		}
+
+		// Parse updated_at
+		if updatedAt, ok := raw["updated_at"].(string); ok {
+			t, err := time.Parse("2006-01-02T15:04:05.999999", updatedAt)
+			if err == nil {
+				cs.UpdatedAt = t
+			} else {
+				cs.UpdatedAt = time.Now() // Fallback para data atual
+			}
+		}
+
+		contentSources = append(contentSources, cs)
+	}
+
+	r.metrics.dbQueries++
 	return contentSources, nil
 }
