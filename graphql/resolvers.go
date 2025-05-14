@@ -221,8 +221,6 @@ func (r *Resolver) GetAnimeOfTheDay(ctx context.Context) (*models.Anime, error) 
 		Eq("airing_day", currentDay).
 		ExecuteWithContext(ctx, &animes)
 
-
-
 	if err != nil {
 		r.logger.Error("Falha ao buscar animes", zap.Error(err))
 		return nil, errors.New("erro interno do servidor")
@@ -230,7 +228,6 @@ func (r *Resolver) GetAnimeOfTheDay(ctx context.Context) (*models.Anime, error) 
 
 	if len(animes) == 0 {
 		return nil, nil
-
 	}
 
 	randomIndex := rand.Intn(len(animes))
@@ -397,8 +394,6 @@ func (r *Resolver) GetDubbedAnimes(ctx context.Context) ([]*models.Anime, error)
 	return animes, nil
 }
 
-
-
 func (r *Resolver) GetAllAnimeNames(ctx context.Context) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -469,19 +464,75 @@ func (r *Resolver) GetGenresByAnimeId(ctx context.Context, args struct{ AnimeID 
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	var genres []*models.Genre
-	err := r.DB.DB.From("genres").
-		Select("*").
+	// Primeiro, buscar os IDs dos gêneros na tabela de relacionamento
+	var genreRelations []struct {
+		GenreID string `json:"genre_id"`
+	}
+	err := r.DB.DB.From("anime_genres").
+		Select("genre_id").
 		Eq("anime_id", args.AnimeID).
-		ExecuteWithContext(ctx, &genres)
+		ExecuteWithContext(ctx, &genreRelations)
+
+	if err != nil {
+		r.logger.Error("Falha ao buscar relações de gêneros", zap.String("animeID", args.AnimeID), zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
+
+	if len(genreRelations) == 0 {
+		return []*models.Genre{}, nil
+	}
+
+	// Extrair os IDs dos gêneros
+	genreIDs := make([]string, len(genreRelations))
+	for i, relation := range genreRelations {
+		genreIDs[i] = relation.GenreID
+	}
+
+	// Buscar os dados brutos dos gêneros primeiro
+	var rawGenres []map[string]interface{}
+	err = r.DB.DB.From("genres").
+		Select("*").
+		In("id", genreIDs).
+		ExecuteWithContext(ctx, &rawGenres)
 
 	if err != nil {
 		r.logger.Error("Falha ao buscar gêneros", zap.String("animeID", args.AnimeID), zap.Error(err))
 		return nil, errors.New("erro interno do servidor")
 	}
 
+	// Converter dados brutos para struct Genre manualmente
+	genres := make([]*models.Genre, 0, len(rawGenres))
+	for _, rawGenre := range rawGenres {
+		genre := &models.Genre{
+			ID:   rawGenre["id"].(string),
+			Name: rawGenre["name"].(string),
+		}
+
+		// Converter created_at
+		if createdAtStr, ok := rawGenre["created_at"].(string); ok {
+			createdAt, err := time.Parse("2006-01-02T15:04:05.999999", createdAtStr)
+			if err == nil {
+				genre.CreatedAt = createdAt
+			} else {
+				genre.CreatedAt = time.Now() // Fallback para data atual
+			}
+		}
+
+		// Converter updated_at
+		if updatedAtStr, ok := rawGenre["updated_at"].(string); ok {
+			updatedAt, err := time.Parse("2006-01-02T15:04:05.999999", updatedAtStr)
+			if err == nil {
+				genre.UpdatedAt = updatedAt
+			} else {
+				genre.UpdatedAt = time.Now() // Fallback para data atual
+			}
+		}
+
+		genres = append(genres, genre)
+	}
+
 	r.cache.genres.Store(args.AnimeID, genres)
-	r.metrics.dbQueries++
+	r.metrics.dbQueries += 2 // Incrementa 2 porque fizemos duas queries
 
 	return genres, nil
 }
@@ -547,67 +598,67 @@ func (r *Resolver) GetSubtitlesByAnimeId(ctx context.Context, args struct{ Anime
 }
 
 func (r *Resolver) GetSeasonsByAnimeId(ctx context.Context, args struct{ AnimeID string }) ([]*models.AnimeSeason, error) {
-    ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-    defer cancel()
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 
-    // Buscar dados brutos primeiro para evitar problemas de parsing
-    var rawSeasons []map[string]interface{}
-    err := r.DB.DB.From("anime_seasons").
-        Select("*").
-        Eq("anime_id", args.AnimeID).
-        ExecuteWithContext(ctx, &rawSeasons)
+	// Buscar dados brutos primeiro para evitar problemas de parsing
+	var rawSeasons []map[string]interface{}
+	err := r.DB.DB.From("anime_seasons").
+		Select("*").
+		Eq("anime_id", args.AnimeID).
+		ExecuteWithContext(ctx, &rawSeasons)
 
-    if err != nil {
-        r.logger.Error("Falha ao buscar temporadas", zap.String("animeID", args.AnimeID), zap.Error(err))
-        return nil, errors.New("erro interno do servidor")
-    }
+	if err != nil {
+		r.logger.Error("Falha ao buscar temporadas", zap.String("animeID", args.AnimeID), zap.Error(err))
+		return nil, errors.New("erro interno do servidor")
+	}
 
-    // Converter dados brutos para struct AnimeSeason manualmente
-    seasons := make([]*models.AnimeSeason, 0, len(rawSeasons))
-    for _, rawSeason := range rawSeasons {
-        season := &models.AnimeSeason{
-            ID:           rawSeason["id"].(string),
-            AnimeID:      rawSeason["anime_id"].(string),
-            SeasonNumber: int(rawSeason["season_number"].(float64)),
-        }
+	// Converter dados brutos para struct AnimeSeason manualmente
+	seasons := make([]*models.AnimeSeason, 0, len(rawSeasons))
+	for _, rawSeason := range rawSeasons {
+		season := &models.AnimeSeason{
+			ID:           rawSeason["id"].(string),
+			AnimeID:      rawSeason["anime_id"].(string),
+			SeasonNumber: int(rawSeason["season_number"].(float64)),
+		}
 
-        // Converter campos opcionais com verificação de tipo
-        if name, ok := rawSeason["season_name"].(string); ok {
-            season.SeasonName = &name
-        }
-        
-        if episodes, ok := rawSeason["total_episodes"].(float64); ok {
-            episodesInt := int(episodes)
-            season.TotalEpisodes = &episodesInt
-        }
+		// Converter campos opcionais com verificação de tipo
+		if name, ok := rawSeason["season_name"].(string); ok {
+			season.SeasonName = &name
+		}
+		
+		if episodes, ok := rawSeason["total_episodes"].(float64); ok {
+			episodesInt := int(episodes)
+			season.TotalEpisodes = &episodesInt
+		}
 
-        // Pular campos de data problemáticos ou implementar parsing manual
-        // A conversão de created_at e updated_at ainda será necessária
-        if createdAtStr, ok := rawSeason["created_at"].(string); ok {
-            createdAt, err := time.Parse("2006-01-02T15:04:05.999999", createdAtStr)
-            if err == nil {
-                season.CreatedAt = createdAt
-            } else {
-                // Fallback para data atual se houver erro
-                season.CreatedAt = time.Now()
-            }
-        }
+		// Pular campos de data problemáticos ou implementar parsing manual
+		// A conversão de created_at e updated_at ainda será necessária
+		if createdAtStr, ok := rawSeason["created_at"].(string); ok {
+			createdAt, err := time.Parse("2006-01-02T15:04:05.999999", createdAtStr)
+			if err == nil {
+				season.CreatedAt = createdAt
+			} else {
+				// Fallback para data atual se houver erro
+				season.CreatedAt = time.Now()
+			}
+		}
 
-        if updatedAtStr, ok := rawSeason["updated_at"].(string); ok {
-            updatedAt, err := time.Parse("2006-01-02T15:04:05.999999", updatedAtStr)
-            if err == nil {
-                season.UpdatedAt = updatedAt
-            } else {
-                // Fallback para data atual se houver erro
-                season.UpdatedAt = time.Now()
-            }
-        }
+		if updatedAtStr, ok := rawSeason["updated_at"].(string); ok {
+			updatedAt, err := time.Parse("2006-01-02T15:04:05.999999", updatedAtStr)
+			if err == nil {
+				season.UpdatedAt = updatedAt
+			} else {
+				// Fallback para data atual se houver erro
+				season.UpdatedAt = time.Now()
+			}
+		}
 
-        seasons = append(seasons, season)
-    }
+		seasons = append(seasons, season)
+	}
 
-    r.metrics.dbQueries++
-    return seasons, nil
+	r.metrics.dbQueries++
+	return seasons, nil
 }
 
 func (r *Resolver) GetContentSourcesByAnimeId(ctx context.Context, args struct{ AnimeID string }) ([]*models.ContentSource, error) {

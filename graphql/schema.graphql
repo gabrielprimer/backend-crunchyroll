@@ -9,7 +9,7 @@ type Anime {
   synopsis: String
   rating: Int
   score: Float
-  genres: [String!]
+  genre: [String!]
   airingDay: String
   totalEpisodes: Int
   currentSeason: Int

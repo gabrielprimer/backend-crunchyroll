@@ -129,7 +129,15 @@ func NewSchema(db *supabase.Client) (graphql.Schema, error) {
 			"synopsis":       &graphql.Field{Type: graphql.String},
 			"rating":         &graphql.Field{Type: graphql.Int},
 			"score":          &graphql.Field{Type: graphql.Float},
-			"airingDay":      &graphql.Field{Type: graphql.String},
+			"airingDay": &graphql.Field{
+				Type: graphql.String,
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if anime, ok := p.Source.(*models.Anime); ok && anime.AiringDay != nil {
+						return string(*anime.AiringDay), nil
+					}
+					return nil, nil
+				},
+			},
 			"totalEpisodes":  &graphql.Field{Type: graphql.Int},
 			"audioType": &graphql.Field{
 				Type: graphql.String,
